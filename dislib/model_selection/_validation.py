@@ -1,9 +1,12 @@
 import numbers
 
 from dislib.data.array import Array
+from dislib.data.array import ds_array_from_sendable_parameter
 from pycompss.api.task import task
+from pycompss.api.api import compss_wait_on
 from pycompss.api.parameter import INOUT, Depth, Type, COLLECTION_IN
 import numpy as np
+import sys
 
 
 def fit(estimator, train_ds, parameters, fit_params):
@@ -20,6 +23,54 @@ def score_func(estimator, validation_ds, scorer):
 
     return [test_scores]
 
+def fit_and_score_and_validate(estimator, train, validation, scorer, parameters, fit_params):
+    ds_x_train, ds_y_train = train
+    ds_x_test, ds_y_test = validation
+
+    (x_traing_blocks, x_traing_top_left_shape, x_traing_reg_shape, x_traing_shape) = ds_x_train.make_sendable_parameter()
+    (y_traing_blocks, y_traing_top_left_shape, y_traing_reg_shape, y_traing_shape) = ds_y_train.make_sendable_parameter()
+    (x_test_blocks, x_test_top_left_shape, x_test_reg_shape, x_test_shape) = ds_x_test.make_sendable_parameter()
+    (y_test_blocks, y_test_top_left_shape, y_test_reg_shape, y_test_shape) = ds_y_test.make_sendable_parameter()
+    print("Invoking _fit_and_score_and_validate", flush=True)
+    return _fit_and_score_and_validate_task(estimator,
+                                            x_traing_blocks, x_traing_top_left_shape, x_traing_reg_shape, x_traing_shape,
+                                            y_traing_blocks, y_traing_top_left_shape, y_traing_reg_shape, y_traing_shape,
+                                            x_test_blocks, x_test_top_left_shape, x_test_reg_shape, x_test_shape,
+                                            y_test_blocks, y_test_top_left_shape, y_test_reg_shape, y_test_shape,
+                                            scorer, parameters, fit_params)
+
+@task(is_distributed=True, x_traing_blocks={Type: COLLECTION_IN, Depth: 2},
+      y_traing_blocks={Type: COLLECTION_IN, Depth: 2},
+      x_test_blocks={Type: COLLECTION_IN, Depth: 2},
+      y_test_blocks={Type: COLLECTION_IN, Depth: 2},)
+def _fit_and_score_and_validate_task(estimator,x_traing_blocks, x_traing_top_left_shape, x_traing_reg_shape, x_traing_shape, y_traing_blocks, y_traing_top_left_shape, y_traing_reg_shape, y_traing_shape, x_test_blocks, x_test_top_left_shape, x_test_reg_shape, x_test_shape, y_test_blocks, y_test_top_left_shape, y_test_reg_shape, y_test_shape, scorer, parameters,
+                                     fit_params):
+
+
+    print("______ empezando fit and score and validate task")
+    sys.stdout.flush()
+    ds_x_train = ds_array_from_sendable_parameter((x_traing_blocks, x_traing_top_left_shape, x_traing_reg_shape, x_traing_shape))
+    ds_y_train = ds_array_from_sendable_parameter((y_traing_blocks, y_traing_top_left_shape, y_traing_reg_shape, y_traing_shape))
+    ds_x_test = ds_array_from_sendable_parameter((x_test_blocks, x_test_top_left_shape, x_test_reg_shape, x_test_shape))
+    ds_y_test = ds_array_from_sendable_parameter((y_test_blocks, y_test_top_left_shape, y_test_reg_shape, y_test_shape))
+
+    #fit
+    if parameters is not None:
+        estimator.set_params(**parameters)
+    estimator.fit(ds_x_train, ds_y_train, **fit_params)
+
+
+    #score
+    scores = _score(estimator, ds_x_test, ds_y_test, scorer)
+
+    #validate
+    # scores = compss_wait_on(scores)
+    for scorer_name, score in scores.items():
+        score = compss_wait_on(score)
+        scores[scorer_name] = validate_score(score, scorer_name)
+
+    print("______ finalizado fit and score and validate task")
+    return [scores]
 
 @task(est=INOUT, blocks_x={Type: COLLECTION_IN, Depth: 2},
       blocks_y={Type: COLLECTION_IN, Depth: 2})

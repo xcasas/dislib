@@ -14,19 +14,20 @@ from numpy.ma import MaskedArray
 from dislib.model_selection._split import infer_cv
 from dislib.model_selection._validation import check_scorer, \
     validate_score, aggregate_score_dicts, fit, score_func, \
-    sklearn_fit, sklearn_score
+    sklearn_fit, sklearn_score, fit_and_score_and_validate
 
 
 class BaseSearchCV(ABC):
     """Abstract base class for hyper parameter search with cross-validation."""
 
     def __init__(self, estimator, scoring=None, sort="max",
-                 cv=None, refit=True):
+                 cv=None, refit=True, nested=False):
         self.estimator = estimator
         self.scoring = scoring
         self.sort = sort
         self.cv = cv
         self.refit = refit
+        self.nested = nested
         self.validation_data = []
         self.all_out = []
         self.all_candidate_params = []
@@ -121,8 +122,31 @@ class BaseSearchCV(ABC):
             self.all_candidate_params.extend(candidate_params)
             all_out.extend(out)
 
+        def evaluate_candidates_nested(candidate_params):
+            """Evaluate some parameters"""
+            candidate_params = list(candidate_params)
+
+            validation_data = []
+            out = []
+            splits = list(cv.split(x, y))
+            for parameters, (train, validation) in product(candidate_params, splits):
+                validation_data.append(validation)
+                out.append(fit_and_score_and_validate(clone(base_estimator), train, validation,
+                                                      scorer=scorers, parameters=parameters, fit_params=fit_params))
+
+            out = compss_wait_on(out)
+
+            nonlocal n_splits
+            n_splits = cv.get_n_splits()
+
+            self.all_candidate_params.extend(candidate_params)
+            all_out.extend(out)
+
+
         if 'sklearn' in str(type(estimator)):
             self._run_search(evaluate_candidates_sklearn)
+        elif self.nested:
+            self._run_search(evaluate_candidates_nested)
         else:
             self._run_search(evaluate_candidates)
 
@@ -438,9 +462,9 @@ class GridSearchCV(BaseSearchCV):
     """
 
     def __init__(self, estimator, param_grid, sort="max",
-                 scoring=None, cv=None, refit=True):
+                 scoring=None, cv=None, refit=True, nested=False):
         super().__init__(estimator=estimator, scoring=scoring,
-                         sort=sort, cv=cv, refit=refit)
+                         sort=sort, cv=cv, refit=refit, nested=nested)
         self.param_grid = param_grid
         self._check_param_grid(param_grid)
 
@@ -665,10 +689,11 @@ class RandomizedSearchCV(BaseSearchCV):
     """
     def __init__(self, estimator, param_distributions, n_iter=10, sort="max",
                  scoring=None,
-                 cv=None, refit=True, random_state=None):
+                 cv=None, refit=True, random_state=None, nested=False):
         super().__init__(estimator=estimator, scoring=scoring, sort=sort,
                          cv=cv,
-                         refit=refit)
+                         refit=refit,
+                         nested=nested)
         self.param_distributions = param_distributions
         self.n_iter = n_iter
         self.random_state = random_state

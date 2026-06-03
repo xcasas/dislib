@@ -1357,6 +1357,22 @@ class Array(object):
                      reg_shape=self._reg_shape,
                      shape=shape, sparse=False)
 
+    def make_sendable_parameter(self):
+        """
+        Converts the ds-array into an object that can be send as a task parameter
+
+        Returns
+        -------
+            object to be sent as a task parameter
+        """
+        return (self._blocks, self._top_left_shape, self._reg_shape, self.shape)
+
+
+def ds_array_from_sendable_parameter(sendable_parameter):
+    blocks, top_left_shape, reg_shape, shape = sendable_parameter
+
+    return Array(blocks=blocks, top_left_shape=top_left_shape,
+                 reg_shape=reg_shape, shape=shape, sparse=False)
 
 def array(x, block_size):
     """

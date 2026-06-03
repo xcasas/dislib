@@ -295,7 +295,7 @@ def merge_slices(s1, s2):
                  sparse=s1._sparse)
 
 
-@constraint(computing_units="${ComputingUnits}")
+@constraint(computing_units="${ComputingUnits}", is_local=True)
 @task(blocks={Type: COLLECTION_IN, Depth: 2},
       out_blocks={Type: COLLECTION_OUT, Depth: 1})
 def _merge_rows_keeping_cols(blocks, out_blocks):
