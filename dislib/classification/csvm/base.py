@@ -559,14 +559,14 @@ def _decode_helper(obj):
     return obj
 
 
-@constraint(computing_units="${ComputingUnits}", is_local=True)
+@constraint(computing_units="${ComputingUnits}")
 @task(priority=True, returns=1)
 def _gen_ids(n_samples):
     idx = [[uuid4().int] for _ in range(n_samples)]
     return np.array(idx)
 
 
-@constraint(computing_units="${ComputingUnits}", is_local=True)
+@constraint(computing_units="${ComputingUnits}")
 @task(priority=True, x_list={Type: COLLECTION_IN, Depth: 2},
       y_list={Type: COLLECTION_IN, Depth: 2},
       id_list={Type: COLLECTION_IN, Depth: 2},
@@ -592,21 +592,21 @@ def _train(x_list, y_list, id_list, random_state, **params):
     return sv, sv_labels, sv_ids, clf
 
 
-@constraint(computing_units="${ComputingUnits}", is_local=True)
+@constraint(computing_units="${ComputingUnits}")
 @task(priority=True, x_list={Type: COLLECTION_IN, Depth: 2}, returns=np.array)
 def _predict(x_list, clf):
     x = Array._merge_blocks(x_list)
     return clf.predict(x).reshape(-1, 1)
 
 
-@constraint(computing_units="${ComputingUnits}", is_local=True)
+@constraint(computing_units="${ComputingUnits}")
 @task(priority=True, x_list={Type: COLLECTION_IN, Depth: 2}, returns=np.array)
 def _decision_function(x_list, clf):
     x = Array._merge_blocks(x_list)
     return clf.decision_function(x).reshape(-1, 1)
 
 
-@constraint(computing_units="${ComputingUnits}", is_local=True)
+@constraint(computing_units="${ComputingUnits}")
 @task(priority=True, x_list={Type: COLLECTION_IN, Depth: 2},
       y_list={Type: COLLECTION_IN, Depth: 2}, returns=tuple)
 def _score(x_list, y_list, clf):
@@ -619,7 +619,7 @@ def _score(x_list, y_list, clf):
     return np.sum(equal), x.shape[0]
 
 
-@constraint(computing_units="${ComputingUnits}", is_local=True)
+@constraint(computing_units="${ComputingUnits}")
 @task(priority=True, returns=float)
 def _merge_scores(*partials):
     total_correct = 0.
