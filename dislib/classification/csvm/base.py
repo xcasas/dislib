@@ -637,9 +637,11 @@ def _merge(x_list, y_list, id_list):
     labels = Array._merge_blocks(y_list)
     sample_ids = Array._merge_blocks(id_list)
 
-    _, uniques = np.unique(sample_ids, return_index=True)
-    indices = np.argsort(uniques)
-    uniques = uniques[indices]
+    sample_ids = np.asarray(sample_ids)
+    row_ids = sample_ids.reshape(-1) if sample_ids.ndim == 1 else sample_ids[:, 0]
+
+    _, uniques = np.unique(row_ids, return_index=True)
+    uniques.sort()
 
     sample_ids = sample_ids[uniques]
     samples = samples[uniques]
